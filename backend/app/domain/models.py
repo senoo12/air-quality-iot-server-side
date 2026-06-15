@@ -2,6 +2,7 @@ import sqlalchemy as sa
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Date, Time, Boolean
 from sqlalchemy.orm import relationship
 from app.infrastructure.database import Base 
+from app.core.config import get_wib_time
 from datetime import datetime
 
 # TABEL USERS
@@ -15,9 +16,9 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     devices = relationship("Device", back_populates="owner", cascade="all, delete-orphan")
@@ -30,11 +31,12 @@ class Device(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     device_name = Column(String)
+    status_active = Column(Boolean, default=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     owner = relationship("User", back_populates="devices")
@@ -55,9 +57,9 @@ class SensorMQ135(Base):
     ppm_acetone = Column(Float)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     device = relationship("Device", back_populates="sensor_mq135_logs")
@@ -74,9 +76,9 @@ class SensorDHT22(Base):
     humidity = Column(Float)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     device = relationship("Device", back_populates="sensor_dht22_logs")
@@ -94,9 +96,9 @@ class ConclusionFeature(Base):
     is_weekend = Column(Boolean)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi ke Sensor
     sensor_mq135 = relationship("SensorMQ135", back_populates="conclusion_features")
@@ -115,9 +117,9 @@ class Classification(Base):
     label_status = Column(String)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     conclusion_feature = relationship("ConclusionFeature", back_populates="classifications")
@@ -135,9 +137,9 @@ class Prediction(Base):
     confidence = Column(Float)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+    updated_at = Column(DateTime(timezone=True), default=get_wib_time, onupdate=get_wib_time)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relasi
     conclusion_feature = relationship("ConclusionFeature", back_populates="predictions")

@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 from sqlalchemy.orm import Session
 from app.infrastructure.repositories import SensorRepository
+from zoneinfo import ZoneInfo
 
 class ClassificationService:
     def __init__(self, db: Session):
@@ -44,9 +45,36 @@ class ClassificationService:
             # ── 2. Susun raw values per timestep ─────────────────────────────
             # mq_history[0] = t-3 (paling lama), mq_history[3] = t-0 (sekarang)
             timesteps = []
+            jakarta_tz = ZoneInfo("Asia/Jakarta")
+
             for i in range(4):
                 mq  = mq_history[i]
                 dht = dht_history[i]
+
+                dt_raw = mq.created_at
+                if dt_raw.tzinfo is None:
+                    # Asumsikan data mentah dari Neon adalah UTC murni, lalu konversi ke Jakarta (+7 jam)
+                    dt_jakarta = dt_raw.replace(tzinfo=ZoneInfo("UTC")).astimezone(jakarta_tz)
+                else:
+                    # Jika sudah aware, konversikan zona waktunya secara langsung
+                    dt_jakarta = dt_raw.astimezone(jakarta_tz)
+
+                # 💡 VALIDASI DARURAT: Jika setelah dikonversi jamnya TETAP bernilai 12 
+                # (artinya database menyimpan jam lokal 12 tanpa membaca offset asli),
+                # paksa labelnya langsung menjadi Asia/Jakarta menggunakan replace()
+                if dt_jakarta.hour == dt_raw.hour and dt_raw.hour != 19:
+                    # Cari selisih jam saat ini antara data Anda (19) dan data input (12)
+                    # Jika selisihnya tepat 7 jam, berarti dt_raw sebenarnya adalah jam UTC murni
+                    dt_jakarta = dt_raw.replace(tzinfo=ZoneInfo("UTC")).astimezone(jakarta_tz)
+                    
+                    # Jika masih tidak bergeser ke 19, artinya database mencatat waktu server internal (UTC) sebagai waktu lokal.
+                    # Kita lakukan pengecekan manual terakhir:
+                    if dt_jakarta.hour != 19:
+                        # Jika dt_raw.hour adalah 12 dan Anda tahu aslinya jam 19, tambahkan timedelta secara manual
+                        from datetime import timedelta
+                        if dt_raw.hour == 12:
+                            dt_jakarta = dt_raw + timedelta(hours=7)
+
                 timesteps.append({
                     'mq135'      : mq.mq135,                                     # raw, tanpa log
                     'temperature': dht.temperature,
@@ -55,9 +83,11 @@ class ClassificationService:
                     'ppm_co'     : np.log1p(mq.ppm_co),                          # log1p
                     'ppm_co2'    : np.log1p(mq.ppm_co2),                         # log1p
                     'ppm_acetone': np.log1p(mq.ppm_acetone),                     # log1p
-                    'hour'       : mq.created_at.hour,
-                    'is_weekend' : int(mq.created_at.weekday() >= 5)
+                    'hour'       : dt_jakarta.hour,
+                    'is_weekend' : int(dt_jakarta.weekday() >= 5)
                 })
+
+                print(f"🔍 [DEBUG TIMEZONE] tipe: {type(dt_raw)} | nilai asli: {dt_raw} | tzinfo: {dt_raw.tzinfo} | hasil jam jakarta: {dt_jakarta.hour}")
             # timesteps[0] = t-3, timesteps[3] = t-0
 
             # ── 3. Bentuk DataFrame sesuai urutan fitur model ─────────────────

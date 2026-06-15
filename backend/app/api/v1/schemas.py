@@ -14,12 +14,16 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
+    created_at: datetime
+    updated_at: datetime
 
 class UserResponse(BaseModel):
     id: int
     username: str
     email: str
     is_admin: bool
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -30,14 +34,19 @@ class UserResponse(BaseModel):
 # ==========================================
 class DeviceCreate(BaseModel):
     device_name: str
+    status_active: bool = True
 
 class DeviceResponse(DeviceCreate):
     id: int
     user_id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
 
+class DeviceStatusUpdate(BaseModel):
+    status_active: bool
 
 # ==========================================
 # 3. INDIVIDUAL SENSOR LOG RESPONSES
@@ -85,7 +94,6 @@ class SensorLogCreate(BaseModel):
     ppm_co: float
     ppm_co2: float
     ppm_acetone: float
-
 
 class SensorHistoryCombinedResponse(BaseModel):
     """

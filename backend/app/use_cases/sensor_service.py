@@ -4,6 +4,7 @@ from datetime import datetime
 from app.domain import models
 from app.infrastructure.repositories import SensorRepository, DeviceRepository
 from app.use_cases.classification_service import ClassificationService
+from app.core.config import get_wib_time
 
 class SensorService:
     def __init__(self, db: Session):
@@ -44,8 +45,8 @@ class SensorService:
             conclusion_feature = self.sensor_repo.create_conclusion_feature(
                 mq135_id=mq135_log.id,
                 dht22_id=dht22_log.id,
-                current_hour=now.time(),
-                is_weekend=(now.weekday() >= 5)
+                current_hour=get_wib_time().time(),
+                is_weekend=int(get_wib_time().weekday() >= 5)
             )
             self.db.flush()
 

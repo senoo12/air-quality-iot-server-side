@@ -84,7 +84,7 @@ def create_device(
 ):
     """Mendaftarkan perangkat IoT baru ke user tertentu (Khusus Admin)."""
     device_service = DeviceService(db)
-    return device_service.register_new_device(user_target_id, device_data.device_name)
+    return device_service.register_new_device(user_target_id, device_data.device_name, status_active=device_data.status_active)
 
 
 @router.get("/devices", response_model=List[schemas.DeviceResponse], tags=["Devices"])
@@ -96,6 +96,19 @@ def list_my_devices(
     device_service = DeviceService(db)
     return device_service.get_user_device_list(token)
 
+@router.patch("/devices/{device_id}/status", response_model=schemas.DeviceResponse, tags=["Devices"])
+def update_my_device_status(
+    device_id: int,
+    payload: schemas.DeviceStatusUpdate,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint untuk user mengubah status (nyala/mati) perangkat IoT miliknya sendiri.
+    Sistem akan menolak jika user mencoba mengubah device milik orang lain.
+    """
+    device_service = DeviceService(db)
+    return device_service.change_device_status(token, device_id, payload.status_active)
 
 # ==========================================
 # 3. SENSOR & REAL-TIME CLASSIFICATION ENDPOINTS

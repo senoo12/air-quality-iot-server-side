@@ -40,8 +40,8 @@ class DeviceRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_device(self, user_id: int, name: str):
-        device = models.Device(user_id=user_id, device_name=name)
+    def create_device(self, user_id: int, name: str, status_active: bool):
+        device = models.Device(user_id=user_id, device_name=name, status_active=status_active)
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)
@@ -52,7 +52,15 @@ class DeviceRepository:
 
     def get_device_by_id(self, device_id: int):
         return self.db.query(models.Device).filter(models.Device.id == device_id).first()
-
+    
+    def update_status(self, device_id: int, status_active: bool):
+        """Mengubah field status_active secara langsung di database."""
+        db_device = self.db.query(models.Device).filter(models.Device.id == device_id).first()
+        if db_device:
+            db_device.status_active = status_active
+            self.db.commit()
+            self.db.refresh(db_device)
+        return db_device
 
 # SENSOR REPOSITORY
 class SensorRepository:
