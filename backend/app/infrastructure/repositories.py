@@ -36,7 +36,15 @@ class UserRepository:
         self.db.commit()
         self.db.refresh(device)
         return device
-
+    
+    def update_admin_status(self, user_id: int, is_admin: bool):
+        """Mengubah status is_admin dari user berdasarkan ID."""
+        user = self.get_by_id(user_id)
+        if user:
+            user.is_admin = is_admin
+            self.db.commit()
+            self.db.refresh(user)
+        return user
 
 # DEVICE REPOSITORY
 class DeviceRepository:
@@ -69,6 +77,15 @@ class DeviceRepository:
             self.db.commit()
             self.db.refresh(db_device)
         return db_device
+    
+    def update_admin_status(self, user_id: int, is_admin: bool):
+        """Mengubah status is_admin dari user berdasarkan ID."""
+        user = self.get_by_id(user_id)
+        if user:
+            user.is_admin = is_admin
+            self.db.commit()
+            self.db.refresh(user)
+        return user
 
 # SENSOR REPOSITORY
 class SensorRepository:

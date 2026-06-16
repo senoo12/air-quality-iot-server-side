@@ -14,6 +14,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False)
+    is_superuser = Column(Boolean, default=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=get_wib_time)

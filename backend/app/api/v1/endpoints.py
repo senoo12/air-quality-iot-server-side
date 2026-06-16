@@ -1,5 +1,5 @@
 # app/api/v1/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
@@ -70,6 +70,35 @@ def list_all_users(admin: models.User = Depends(get_current_admin), db: Session 
     user_repo = UserRepository(db)
     return user_repo.get_all_users()
 
+@router.patch("/users/{user_id}/admin-status")
+def patch_user_admin_status(
+    user_id: int, 
+    payload: schemas.UpdateAdminSchema, 
+    token: str = Depends(oauth2_scheme), # 🟢 Menggunakan Depends(oauth2_scheme) menggantikan Header(...)
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint khusus Superuser untuk mengubah status is_admin dari user tertentu.
+    """
+    # 💡 Anda tidak perlu lagi melakukan split "Bearer " secara manual!
+    # oauth2_scheme otomatis memotong teks "Bearer " dan memberikan string token murninya saja.
+    
+    auth_service = AuthService(db)
+    updated_user = auth_service.update_user_admin_role(
+        token=token, 
+        target_user_id=user_id, 
+        is_admin=payload.is_admin
+    )
+    
+    return {
+        "status": "success",
+        "message": f"Status admin user ID {user_id} berhasil diperbarui menjadi {payload.is_admin}.",
+        "data": {
+            "id": updated_user.id,
+            "username": updated_user.username,
+            "is_admin": updated_user.is_admin
+        }
+    }
 
 # ==========================================
 # 2. DEVICE ENDPOINTS

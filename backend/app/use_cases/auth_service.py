@@ -44,6 +44,7 @@ class AuthService:
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "is_admin": user.is_admin,
+            "is_superuser": user.is_superuser
         }
 
     def refresh_session(self, refresh_token: str) -> dict:
@@ -76,4 +77,47 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, 
                 detail="Refresh token kadaluwarsa atau tidak valid, silakan login ulang"
+            )
+    
+    def update_user_admin_role(self, token: str, target_user_id: int, is_admin: bool):
+        """
+        Mengubah status is_admin milik user lain.
+        Hanya bisa dilakukan jika aktor yang login memiliki is_superuser == True.
+        """
+        try:
+            # 1. Dekode token untuk mencari username aktor
+            actor_info = decode_token(token)
+            actor_username = actor_info.get("sub")
+            
+            # 2. Ambil data aktor dari database
+            actor = self.user_repo.get_by_username(actor_username)
+            if not actor:
+                raise HTTPException(status_code=401, detail="Aktor (Superuser) tidak dikenali")
+                
+            # 3. Validasi: Apakah aktor benar-back-end seorang superuser?
+            if not actor.is_superuser:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Akses ditolak. Hanya Superuser yang dapat mengubah jabatan Admin."
+                )
+                
+            # 4. Validasi: Pastikan user target ada di database
+            target_user = self.user_repo.get_by_id(target_user_id)
+            if not target_user:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"User target dengan ID {target_user_id} tidak ditemukan"
+                )
+                
+            # 5. Eksekusi update melalui repository yang baru kita buat
+            return self.user_repo.update_admin_status(target_user_id, is_admin)
+
+        except HTTPException as he:
+            # 🟢 PENTING: Melemparkan HTTPException asli (403, 404) agar tidak tertimpa ke 401
+            raise he
+        except Exception as e:
+            # Menangkap real error jika ada masalah lain (misal masalah library JWT atau database)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Token tidak valid atau telah kadaluwarsa"
             )

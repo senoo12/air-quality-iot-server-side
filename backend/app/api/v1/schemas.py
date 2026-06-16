@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, date, time
 from typing import List, Optional
+from email.header import Header
 
 # ==========================================
 # 1. AUTH SCHEMAS
@@ -15,6 +16,7 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
     is_admin: bool
+    is_superuser: bool
     created_at: datetime
     updated_at: datetime
 
@@ -28,7 +30,9 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
+    
+class UpdateAdminSchema(BaseModel):
+    is_admin: bool
 
 # ==========================================
 # 2. DEVICE SCHEMAS
