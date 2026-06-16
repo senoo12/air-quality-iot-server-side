@@ -1,7 +1,7 @@
 import { AuthRepository } from "@/src/domain/usecases/AuthRepository";
 import { RegisterRequest, RegisterResponse, UserToken } from "@/src/domain/entities/Auth";
 
-const API_BASE_URL = 'http://34.101.207.101/api/v1';
+const API_BASE_URL = 'https://air-quality-sti-unj.duckdns.org/api/v1';
 
 export class AuthRepositoryImpl implements AuthRepository {
     async login(username: string, password: string): Promise<UserToken> {
@@ -35,7 +35,7 @@ export class AuthRepositoryImpl implements AuthRepository {
         const formData = new URLSearchParams();
         formData.append('refresh_token', refreshToken);
 
-        const res = await fetch('http://34.101.207.101/api/v1/refresh', { // Sesuaikan endpoint refresh token di FastAPI Anda
+        const res = await fetch('https://air-quality-sti-unj.duckdns.org/api/v1/refresh', { // Sesuaikan endpoint refresh token di FastAPI Anda
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

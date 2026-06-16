@@ -49,7 +49,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     const formData = new URLSearchParams();
                     formData.append('refresh_token', refreshToken);
 
-                    const res = await fetch('http://34.101.207.101/api/v1/refresh', {
+                    const res = await fetch('https://air-quality-sti-unj.duckdns.org/api/v1/refresh', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: formData.toString(),

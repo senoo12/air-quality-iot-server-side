@@ -1,7 +1,7 @@
 import { AirQualityRepository, UserDropdownEntity } from "./AirQualityRepository";
 import { Device, SensorLog, Classification, ForecastPrediction } from "@/src/domain/entities/AirQuality";
 
-const API_BASE_URL = 'http://34.101.207.101/api/v1';
+const API_BASE_URL = 'https://air-quality-sti-unj.duckdns.org/api/v1';
 
 export class AirQualityRepositoryImpl implements AirQualityRepository {
     private getHeaders(token: string) {
