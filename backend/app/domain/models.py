@@ -29,8 +29,8 @@ class Device(Base):
     __tablename__ = "devices"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    device_name = Column(String)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    device_name = Column(String, unique=True, index=True)
     status_active = Column(Boolean, default=True)
     
     # Timestamps
