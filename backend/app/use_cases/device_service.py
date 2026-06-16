@@ -1,22 +1,32 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from app.infrastructure.repositories import DeviceRepository
+from app.infrastructure.repositories import DeviceRepository, UserRepository
 from app.infrastructure.security import decode_token
 
 class DeviceService:
     def __init__(self, db: Session):
         self.device_repo = DeviceRepository(db)
+        self.user_repo = UserRepository(db)
 
     def register_new_device(self, user_target_id: int, device_name: str, status_active: bool = True):
-        user_exists = self.user_repo.get_by_id(user_target_id) # atau method serupa di repo Anda
+        # 1. Validasi: Cek apakah user ada
+        user_exists = self.user_repo.get_by_id(user_target_id)
         if not user_exists:
             raise HTTPException(
                 status_code=404, 
                 detail=f"User dengan ID {user_target_id} tidak ditemukan"
             )
         
-        # 2. Validasi: Cek apakah device_name sudah terdaftar
-        # (Anda perlu membuat method get_by_name di device_repo jika belum ada)
+        # 🟢 TAMBAHKAN VALIDASI INI (Cek hubungan One-to-One):
+        # Cari tahu apakah user ini sudah punya device terdaftar
+        user_has_device = self.device_repo.get_by_user_id(user_target_id)
+        if user_has_device:
+            raise HTTPException(
+                status_code=400,
+                detail=f"User dengan ID {user_target_id} sudah memiliki perangkat terdaftar (Maksimal 1 perangkat per user)."
+            )
+        
+        # 2. Validasi: Cek apakah device_name sudah terdaftar global
         device_exists = self.device_repo.get_by_name(device_name)
         if device_exists:
             raise HTTPException(
@@ -26,6 +36,7 @@ class DeviceService:
         
         # 3. Jika semua validasi lolos, buat device baru
         return self.device_repo.create_device(user_target_id, device_name, status_active=status_active)
+    
     def get_user_device_list(self, token: str) -> list:
         """Membongkar token JWT dan mengambil daftar device milik user tersebut."""
         try:

@@ -15,6 +15,9 @@ class UserRepository:
 
     def get_by_email(self, email: str):
         return self.db.query(models.User).filter(models.User.email == email).first()
+    
+    def get_by_id(self, user_id: int):
+        return self.db.query(models.User).filter(models.User.id == user_id).first()
 
     def create(self, username: str, hashed_password: str, email: str):
         db_user = models.User(
@@ -50,8 +53,13 @@ class DeviceRepository:
     def get_user_devices(self, user_id: int):
         return self.db.query(models.Device).filter(models.Device.user_id == user_id).all()
 
-    def get_device_by_id(self, device_id: int):
-        return self.db.query(models.Device).filter(models.Device.id == device_id).first()
+    def get_by_user_id(self, user_id: int):
+        """Mencari device berdasarkan user_id (untuk validasi relasi One-to-One)."""
+        return self.db.query(models.Device).filter(models.Device.user_id == user_id).first()
+
+    def get_by_name(self, device_name: str):
+            """Mencari device berdasarkan nama perangkat di database."""
+            return self.db.query(models.Device).filter(models.Device.device_name == device_name).first()
     
     def update_status(self, device_id: int, status_active: bool):
         """Mengubah field status_active secara langsung di database."""
