@@ -56,14 +56,23 @@ class AuthService:
             if not username or not user_id:
                 raise HTTPException(status_code=401, detail="Format token tidak valid")
 
+            # 1. Ambil data user dari database berdasarkan username atau ID
+            user = self.user_repo.get_by_username(username)
+            if not user:
+                raise HTTPException(status_code=401, detail="User tidak ditemukan")
+
             # Terbitkan token baru
             new_access_token = create_access_token(data={"sub": username, "id": user_id})
             return {
                 "access_token": new_access_token,
                 "token_type": "bearer",
-                "is_admin": user.is_admin
+                "is_admin": user.is_admin # Sekarang 'user' sudah aman diakses
             }
-        except Exception:
+        except HTTPException as he:
+            # Biarkan HTTPException yang sengaja kita buat lolos tanpa tertimpa error 401 general
+            raise he
+        except Exception as e:
+            # Anda bisa print(e) di sini saat debugging untuk melihat jika ada error internal lain
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, 
                 detail="Refresh token kadaluwarsa atau tidak valid, silakan login ulang"
