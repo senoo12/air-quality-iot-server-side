@@ -42,7 +42,8 @@ class AuthService:
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "is_admin": user.is_admin,
         }
 
     def refresh_session(self, refresh_token: str) -> dict:
@@ -59,7 +60,8 @@ class AuthService:
             new_access_token = create_access_token(data={"sub": username, "id": user_id})
             return {
                 "access_token": new_access_token,
-                "token_type": "bearer"
+                "token_type": "bearer",
+                "is_admin": user.is_admin
             }
         except Exception:
             raise HTTPException(

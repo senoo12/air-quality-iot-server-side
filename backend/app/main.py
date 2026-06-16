@@ -40,7 +40,7 @@ fastapi.routing.jsonable_encoder = custom_jsonable_encoder
 # Jalankan skrip pembentukan tabel seperti biasa
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Personalized Sensor API")
+app = FastAPI(title="Air Quality Monitoring API", version="1.0")
 
 # Catatan kecil: pastikan format origins Anda adalah list of strings biasa 
 # agar CORS tidak error jika nanti asterisk ["*"] dilepas, contoh: origins = ["*"]
