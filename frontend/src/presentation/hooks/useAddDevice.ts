@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { AirQualityRepositoryImpl } from "@/src/data/repositories/AirQualityRepositoryImpl";
-import { UserDropdownEntity } from "@/src/domain/usecases/AirQualityRepository";
+import { AirQualityRepositoryImpl } from "../../data/repositories/AirQualityRepositoryImpl";
+import { UserDropdownEntity } from "../../data/repositories/AirQualityRepository";
 
 const repository = new AirQualityRepositoryImpl();
 
