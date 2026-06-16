@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from app.infrastructure.repositories import SensorRepository
 from app.domain import models
+from zoneinfo import ZoneInfo
 
 class ForecastingService:
     def __init__(self, db: Session):
@@ -27,9 +28,10 @@ class ForecastingService:
             'mq135', 'temperature', 'humidity',
             'ppm_nh3', 'ppm_co', 'ppm_co2', 'ppm_acetone'
         ]
-        self.PPM_COLS  = ['ppm_nh3', 'ppm_co', 'ppm_co2', 'ppm_acetone']
-        self.LABEL_MAP = {0: "Bad", 1: "Good", 2: "Moderate"}
-        self.LAG_STEPS = 48   # t-0 s/d t-48 = 49 titik
+        self.PPM_COLS   = ['ppm_nh3', 'ppm_co', 'ppm_co2', 'ppm_acetone']
+        self.LABEL_MAP  = {0: "Bad", 1: "Good", 2: "Moderate"}
+        self.LAG_STEPS  = 48
+        self.JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 
     def predict_day_ahead_status(self, device_id: int) -> dict:
         if not self.forecasting_model:
@@ -38,7 +40,7 @@ class ForecastingService:
                 detail="Model forecasting EXP-06 belum dimuat di server."
             )
 
-        # 1. Ambil history 49 data, urutan asc: index 0 = t-48, index 48 = t-0
+        # 1. Ambil history 49 data (asc: index 0 = t-48, index 48 = t-0)
         mq_history  = self.sensor_repo.get_mq135_forecast_lag_history(device_id, limit=49)
         dht_history = self.sensor_repo.get_dht22_forecast_lag_history(device_id, limit=49)
 
@@ -54,15 +56,26 @@ class ForecastingService:
         while len(dht_history) < 49:
             dht_history.insert(0, dht_history[0])
 
-        # 3. Build features
-        # mq_history[48] = t-0 (terbaru), mq_history[0] = t-48 (terlama)
-        # Loop: lag=0 → ambil index 48 (t-0), lag=48 → ambil index 0 (t-48)
         latest_mq  = mq_history[48]
         latest_dht = dht_history[48]
-        features   = {}
 
-        for lag in range(self.LAG_STEPS + 1):   # 0, 1, ..., 48
-            mq  = mq_history[48 - lag]
+        # ── WAKTU REQUEST (untuk kalkulasi target H+24) ───────────────
+        # Gunakan waktu saat endpoint dipanggil, bukan waktu sensor
+        now_request = datetime.now(tz=self.JAKARTA_TZ)
+
+        # ── WAKTU SENSOR t-0 (untuk fitur hour & is_weekend ke model) ─
+        # Model dilatih berdasarkan jam sensor membaca, bukan jam user request
+        dt_sensor = latest_mq.created_at
+        if dt_sensor.tzinfo is None:
+            sensor_time_wib = dt_sensor.replace(tzinfo=self.JAKARTA_TZ)
+        else:
+            sensor_time_wib = dt_sensor.astimezone(self.JAKARTA_TZ)
+
+        # 3. Build features (345 kolom)
+        features = {}
+
+        for lag in range(self.LAG_STEPS + 1):   # lag 0 s/d 48
+            mq  = mq_history[48 - lag]           # index 48 = t-0, index 0 = t-48
             dht = dht_history[48 - lag]
 
             features[f'mq135_t-{lag}']       = float(mq.mq135)
@@ -74,9 +87,9 @@ class ForecastingService:
             features[f'ppm_co2_t-{lag}']     = float(np.log1p(mq.ppm_co2))
             features[f'ppm_acetone_t-{lag}'] = float(np.log1p(mq.ppm_acetone))
 
-        # Fitur kontekstual dari t-0
-        features['hour']       = int(latest_mq.created_at.hour)
-        features['is_weekend'] = int(latest_mq.created_at.weekday() >= 5)
+        # Fitur kontekstual dari waktu SENSOR t-0 (bukan waktu request)
+        features['hour']       = int(sensor_time_wib.hour)
+        features['is_weekend'] = int(sensor_time_wib.weekday() >= 5)
 
         # Susun urutan kolom sesuai training
         feature_order = [
@@ -91,9 +104,11 @@ class ForecastingService:
         if df_inference.shape[1] != self.forecasting_model.n_features_in_:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Mismatch fitur: "
-                       f"dibangun={df_inference.shape[1]}, "
-                       f"diharapkan={self.forecasting_model.n_features_in_}"
+                detail=(
+                    f"Mismatch fitur: "
+                    f"dibangun={df_inference.shape[1]}, "
+                    f"diharapkan={self.forecasting_model.n_features_in_}"
+                )
             )
 
         try:
@@ -103,9 +118,11 @@ class ForecastingService:
             predicted_label = self.LABEL_MAP[label_idx]
             confidence      = round(float(probabilities[label_idx]), 4)
 
-            # 5. Target waktu H+24
-            now_runtime  = latest_mq.created_at
-            target_dt    = now_runtime + timedelta(hours=24)
+            # 5. Target H+24 dari waktu REQUEST (bukan waktu sensor)
+            #    → kalau request jam 14:02, target = besok jam 14:02
+            target_dt_wib   = now_request + timedelta(hours=24)
+            target_time_wib = target_dt_wib.replace(tzinfo=None).time()
+            target_date_wib = target_dt_wib.replace(tzinfo=None).date()
 
             # 6. Cari anchor ConclusionFeature
             current_conclusion = self.db.query(models.ConclusionFeature)\
@@ -122,19 +139,24 @@ class ForecastingService:
             db_pred = self.sensor_repo.save_forecasting_prediction(
                 conclusion_feature_id=current_conclusion.id,
                 label_status=predicted_label,
-                target_time=target_dt.time(),
-                target_date=target_dt.date(),
+                target_time=target_time_wib,
+                target_date=target_date_wib,
                 confidence=confidence
             )
             self.db.commit()
-            print(f"🔮 [FORECAST] ID={db_pred.id} | {predicted_label} | conf={confidence}")
+            print(
+                f"🔮 [FORECAST] ID={db_pred.id} | {predicted_label} "
+                f"| conf={confidence} "
+                f"| target={target_date_wib} {target_time_wib} WIB"
+                f"| sensor_hour={features['hour']}"
+            )
 
             return {
                 "id"                   : db_pred.id,
                 "conclusion_feature_id": current_conclusion.id,
                 "label_status"         : predicted_label,
-                "target_time"          : target_dt.time(),
-                "target_date"          : target_dt.date(),
+                "target_time"          : db_pred.target_time,
+                "target_date"          : db_pred.target_date,
                 "confidence"           : confidence,
                 "created_at"           : db_pred.created_at
             }
