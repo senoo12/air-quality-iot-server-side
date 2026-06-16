@@ -58,6 +58,10 @@ class DeviceRepository:
         self.db.refresh(device)
         return device
 
+    def get_device_by_id(self, device_id: int):
+        """Mencari data device spesifik berdasarkan Primary Key (ID)."""
+        return self.db.query(models.Device).filter(models.Device.id == device_id).first()
+
     def get_user_devices(self, user_id: int):
         return self.db.query(models.Device).filter(models.Device.user_id == user_id).all()
 
@@ -66,8 +70,8 @@ class DeviceRepository:
         return self.db.query(models.Device).filter(models.Device.user_id == user_id).first()
 
     def get_by_name(self, device_name: str):
-            """Mencari device berdasarkan nama perangkat di database."""
-            return self.db.query(models.Device).filter(models.Device.device_name == device_name).first()
+        """Mencari device berdasarkan nama perangkat di database."""
+        return self.db.query(models.Device).filter(models.Device.device_name == device_name).first()
     
     def update_status(self, device_id: int, status_active: bool):
         """Mengubah field status_active secara langsung di database."""
@@ -77,15 +81,6 @@ class DeviceRepository:
             self.db.commit()
             self.db.refresh(db_device)
         return db_device
-    
-    def update_admin_status(self, user_id: int, is_admin: bool):
-        """Mengubah status is_admin dari user berdasarkan ID."""
-        user = self.get_by_id(user_id)
-        if user:
-            user.is_admin = is_admin
-            self.db.commit()
-            self.db.refresh(user)
-        return user
 
 # SENSOR REPOSITORY
 class SensorRepository:
