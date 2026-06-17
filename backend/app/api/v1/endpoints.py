@@ -1,10 +1,12 @@
 # app/api/v1/endpoints.py
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select  
+from sqlalchemy.orm import joinedload
 from typing import List
 
-# Infrasruktur & Keamanan
+# Infrastruktur & Keamanan
 from app.infrastructure.database import get_db
 from app.infrastructure.security import oauth2_scheme, decode_token
 from app.infrastructure.repositories import UserRepository, DeviceRepository
@@ -22,16 +24,14 @@ from app.use_cases.classification_service import ClassificationService
 
 router = APIRouter()
 
-def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    user_info = decode_token(token)
+async def get_current_admin(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     user_repo = UserRepository(db)
-    
+    user_info = await decode_token(token)
     username = user_info.get("sub") 
-    user = user_repo.get_by_username(username)
+    user = await user_repo.get_by_username(username)
     
     if not user:
         raise HTTPException(status_code=401, detail="User tidak ditemukan")
-    
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
@@ -43,53 +43,49 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
 # ==========================================
 # AUTH ENDPOINTS (REGISTER, LOGIN, REFRESH)
 # ==========================================
-
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
-def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     auth_service = AuthService(db)
-    user = auth_service.register_user(user_data.username, user_data.password, user_data.email)
-    return {"message": "User berhasil didaftarkan", "username": user.username}
-
+    
+    # Jalankan use case pendaftaran user secara async
+    await auth_service.register_user(user_data.username, user_data.password, user_data.email)
+    
+    # 💡 PERBAIKAN: Ambil data username langsung dari payload 'user_data' bawaan client
+    # Ini menghindari error DetachedInstance karena malas membaca objek DB asinkronus
+    return {
+        "message": "User berhasil didaftarkan", 
+        "username": user_data.username
+    }
 
 @router.post("/token", response_model=dict)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     auth_service = AuthService(db)
-    # Semua proses pencocokan password dan pembuatan token dikerjakan di service
-    return auth_service.login_user(form_data.username, form_data.password)
-
+    return await auth_service.login_user(form_data.username, form_data.password)
 
 @router.post("/refresh", response_model=dict)
-def refresh_access_token(refresh_token: str, db: Session = Depends(get_db)):
+async def refresh_access_token(refresh_token: str, db: AsyncSession = Depends(get_db)):  # 👈 Ubah ke AsyncSession
     auth_service = AuthService(db)
-    # Proses pembongkaran dan validasi refresh token dikerjakan di service
-    return auth_service.refresh_session(refresh_token)
+    return await auth_service.refresh_session(refresh_token)
 
 
 @router.get("/users", response_model=List[schemas.UserResponse])
-def list_all_users(admin: models.User = Depends(get_current_admin), db: Session = Depends(get_db)):
+async def list_all_users(admin: models.User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)):  # 👈 Ubah ke AsyncSession
     user_repo = UserRepository(db)
-    return user_repo.get_all_users()
+    return await user_repo.get_all_users()
 
 @router.patch("/users/{user_id}/admin-status")
-def patch_user_admin_status(
+async def patch_user_admin_status(
     user_id: int, 
     payload: schemas.UpdateAdminSchema, 
-    token: str = Depends(oauth2_scheme), # 🟢 Menggunakan Depends(oauth2_scheme) menggantikan Header(...)
-    db: Session = Depends(get_db)
+    token: str = Depends(oauth2_scheme), 
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Endpoint khusus Superuser untuk mengubah status is_admin dari user tertentu.
-    """
-    # 💡 Anda tidak perlu lagi melakukan split "Bearer " secara manual!
-    # oauth2_scheme otomatis memotong teks "Bearer " dan memberikan string token murninya saja.
-    
     auth_service = AuthService(db)
-    updated_user = auth_service.update_user_admin_role(
+    updated_user = await auth_service.update_user_admin_role(
         token=token, 
         target_user_id=user_id, 
         is_admin=payload.is_admin
     )
-    
     return {
         "status": "success",
         "message": f"Status admin user ID {user_id} berhasil diperbarui menjadi {payload.is_admin}.",
@@ -103,60 +99,47 @@ def patch_user_admin_status(
 # ==========================================
 # 2. DEVICE ENDPOINTS
 # ==========================================
-
 @router.post("/devices", response_model=schemas.DeviceResponse, status_code=status.HTTP_201_CREATED, tags=["Devices"])
-def create_device(
+async def create_device(
     device_data: schemas.DeviceCreate, 
     user_target_id: int,
     admin: models.User = Depends(get_current_admin), 
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """Mendaftarkan perangkat IoT baru ke user tertentu (Khusus Admin)."""
     device_service = DeviceService(db)
-    return device_service.register_new_device(user_target_id, device_data.device_name, status_active=device_data.status_active)
-
+    return await device_service.register_new_device(user_target_id, device_data.device_name, status_active=device_data.status_active)
 
 @router.get("/devices", response_model=List[schemas.DeviceResponse], tags=["Devices"])
-def list_my_devices(
+async def list_my_devices(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """Melihat daftar seluruh perangkat IoT yang dimiliki oleh user aktif saat ini."""
     device_service = DeviceService(db)
-    return device_service.get_user_device_list(token)
+    return await device_service.get_user_device_list(token)
 
 @router.patch("/devices/{device_id}/status", response_model=schemas.DeviceResponse, tags=["Devices"])
-def update_my_device_status(
+async def update_my_device_status(
     device_id: int,
     payload: schemas.DeviceStatusUpdate,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Endpoint untuk user mengubah status (nyala/mati) perangkat IoT miliknya sendiri.
-    Sistem akan menolak jika user mencoba mengubah device milik orang lain.
-    """
     device_service = DeviceService(db)
-    return device_service.change_device_status(token, device_id, payload.status_active)
+    return await device_service.change_device_status(token, device_id, payload.status_active)
 
 # ==========================================
 # 3. SENSOR & REAL-TIME CLASSIFICATION ENDPOINTS
 # ==========================================
-
 @router.post("/sensors/log", response_model=dict)
-def log_sensor_data(
+async def log_sensor_data(
     data: schemas.SensorLogCreate, 
     token: str = Depends(oauth2_scheme), 
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Endpoint masukan data dari perangkat IoT (ESP32/Wokwi).
-    Menerima parameter data lingkungan makro dan mikro gas terurai.
-    """
-    user_info = decode_token(token)
+    user_info = await decode_token(token)
     sensor_service = SensorService(db)
     
-    result = sensor_service.log_data(
+    result = await sensor_service.log_data(
         user_id=user_info.get("id"),
         device_id=data.device_id,
         temp=data.temperature,
@@ -167,134 +150,114 @@ def log_sensor_data(
         co2=data.ppm_co2,
         acetone=data.ppm_acetone
     )
-    
     if isinstance(result, dict) and result.get("status") == "error":
         raise HTTPException(status_code=403, detail=result["message"])
-        
     return result
 
 
 @router.get("/history/sensor/{device_id}", response_model=List[schemas.SensorHistoryCombinedResponse])
-def get_combined_sensor_history(
+async def get_combined_sensor_history(
     device_id: int,
     limit: int = 50,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Mengambil riwayat data sensor terintegrasi (MQ135 + DHT22) 
-    melalui tabel perantara conclusion_feature berdasarkan Device ID dan User ID.
-    """
-    user_info = decode_token(token)
+    user_info = await decode_token(token)
     current_user_id = user_info.get("id")
     
-    # Validasi kepemilikan device
     device_repo = DeviceRepository(db)
-    device = device_repo.get_device_by_id(device_id)
+    device = await device_repo.get_device_by_id(device_id)
     if not device or device.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Akses ditolak! Perangkat ini bukan milik Anda.")
 
-    # Jalankan query join tiga tabel secara langsung untuk efisiensi pipeline
-    history = db.query(models.ConclusionFeature)\
+    # 💡 REFAKTOR: Migrasi dari db.query() ke await db.execute(select())
+    stmt = select(models.ConclusionFeature)\
+        .options(
+            joinedload(models.ConclusionFeature.sensor_mq135),  # Eager load untuk MQ135
+            joinedload(models.ConclusionFeature.sensor_dht22)   # Eager load untuk DHT22
+        )\
         .join(models.SensorMQ135, models.ConclusionFeature.sensor_mq135_id == models.SensorMQ135.id)\
         .join(models.SensorDHT22, models.ConclusionFeature.sensor_dht22_id == models.SensorDHT22.id)\
         .filter(models.SensorMQ135.device_id == device_id)\
         .order_by(models.ConclusionFeature.created_at.desc())\
-        .limit(limit).all()
+        .limit(limit)
         
-    return history
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
 @router.get("/classification/latest/{device_id}", response_model=schemas.ClassificationResponse)
-def get_latest_air_quality_classification(
+async def get_latest_air_quality_classification(
     device_id: int,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Menarik hasil klasifikasi status kualitas udara real-time terakhir (Good/Moderate/Bad)
-    berdasarkan conclusion_feature dari device tertentu.
-    """
-    user_info = decode_token(token)
+    user_info = await decode_token(token)
     current_user_id = user_info.get("id")
     
-    # Validasi kepemilikan device terlebih dahulu
     device_repo = DeviceRepository(db)
-    device = device_repo.get_device_by_id(device_id)
+    device = await device_repo.get_device_by_id(device_id)
     if not device or device.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Akses ditolak! Perangkat ini bukan milik Anda.")
     
-    # Ambil data klasifikasi terbaru lewat query join
-    latest_class = db.query(models.Classification)\
+    # 💡 REFAKTOR: Migrasi dari db.query() ke await db.execute(select())
+    stmt = select(models.Classification)\
         .join(models.ConclusionFeature)\
         .join(models.SensorMQ135)\
         .filter(models.SensorMQ135.device_id == device_id)\
-        .order_by(models.Classification.created_at.desc())\
-        .first()
+        .order_by(models.Classification.created_at.desc())
+        
+    result = await db.execute(stmt)
+    latest_class = result.scalars().first()
         
     if not latest_class:
         raise HTTPException(status_code=404, detail="Belum ada data klasifikasi untuk perangkat ini")
-        
     return latest_class
 
 
 @router.get("/history/classification/{device_id}", response_model=List[schemas.ClassificationHistoryResponse])
-def get_classification_history(
+async def get_classification_history(
     device_id: int,
     limit: int = 50,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Mengambil daftar seluruh riwayat track record hasil klasifikasi status kualitas udara 
-    dari tabel classification berdasarkan Device ID dan User ID untuk kebutuhan analytics/grafik.
-    """
-    user_info = decode_token(token)
+    user_info = await decode_token(token)
     current_user_id = user_info.get("id")
     
-    # Validasi kepemilikan device
     device_repo = DeviceRepository(db)
-    device = device_repo.get_device_by_id(device_id)
+    device = await device_repo.get_device_by_id(device_id)
     if not device or device.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Akses ditolak! Perangkat ini bukan milik Anda.")
 
-    # Ambil riwayat log status kualitas udara melintasi relasi database
-    history_class = db.query(models.Classification)\
+    # 💡 REFAKTOR: Migrasi dari db.query() ke await db.execute(select())
+    stmt = select(models.Classification)\
         .join(models.ConclusionFeature)\
         .join(models.SensorMQ135)\
         .filter(models.SensorMQ135.device_id == device_id)\
         .order_by(models.Classification.created_at.desc())\
-        .limit(limit).all()
+        .limit(limit)
         
-    return history_class
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
 
 @router.get("/forecast/day-ahead/{device_id}", response_model=schemas.PredictionResponse, tags=["Forecasting Pipeline"])
-def get_day_ahead_air_quality_forecast(
+async def get_day_ahead_air_quality_forecast(
     device_id: int,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Endpoint ramalan kualitas udara 24 jam ke depan (Day-Ahead Forecasting).
-    
-    Flow Kerja:
-    1. Memvalidasi kepemilikan token pengguna terhadap id perangkat IoT target.
-    2. Menarik tren data runtunan waktu 24 jam ke belakang (49 log lag).
-    3. Memetakan 345 kolom fitur input runtime ke dalam model XGBoost EXP-06.
-    4. Menyimpan dan mengembalikan model data ramalan ke dalam struktur tabel 'predictions'.
-    """
-    # 1. Validasi Kepemilikan Device Pengguna
-    user_info = decode_token(token)
+    user_info = await decode_token(token)
     current_user_id = user_info.get("id")
     
     device_repo = DeviceRepository(db)
-    device = device_repo.get_device_by_id(device_id)
+    device = await device_repo.get_device_by_id(device_id)
     if not device or device.user_id != current_user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Akses ditolak! Perangkat IoT ini bukan terdaftar atas akun Anda."
         )
 
-    # 2. Eksekusi Proses Peramalan Melalui Service Layer
     forecast_service = ForecastingService(db)
-    return forecast_service.predict_day_ahead_status(device_id)
+    return await forecast_service.predict_day_ahead_status(device_id)

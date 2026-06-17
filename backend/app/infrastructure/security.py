@@ -5,6 +5,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,39 +16,43 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto",
+    bcrypt__rounds=10  
+)
 
 # Skema OAuth2 (Ini yang dicari oleh endpoints.py)
 # tokenUrl harus mengarah ke endpoint login kamu
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/token")
 
-def get_password_hash(password: str):
-    return pwd_context.hash(password)
+async def get_password_hash(password: str):
+    return await run_in_threadpool(pwd_context.hash, password)
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+async def verify_password(plain_password, hashed_password):
+    return await run_in_threadpool(pwd_context.verify, plain_password, hashed_password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+async def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = await run_in_threadpool(datetime.utcnow) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = await run_in_threadpool(datetime.utcnow) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = await run_in_threadpool(jwt.encode, to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def create_refresh_token(data: dict):
+async def create_refresh_token(data: dict):
     # Refresh token biasanya berumur jauh lebih lama, misal 7 hari
-    expire = datetime.utcnow() + timedelta(days=7)
+    expire = await run_in_threadpool(datetime.utcnow) + timedelta(days=7)
     to_encode = data.copy()
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return await run_in_threadpool(jwt.encode, to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Fungsi untuk membedah token (Ini juga yang dicari oleh endpoints.py)
-def decode_token(token: str):
+async def decode_token(token: str):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = await run_in_threadpool(jwt.decode, token, SECRET_KEY, algorithms=[ALGORITHM])
         # Jangan hanya ambil username & id, kembalikan semua data agar is_admin terbaca
         username: str = payload.get("sub")
         if username is None:

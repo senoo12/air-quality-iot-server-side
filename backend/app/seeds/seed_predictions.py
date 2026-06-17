@@ -6,12 +6,12 @@ import random
 # Fix Path agar bisa import app
 sys.path.append(os.getcwd())
 
-from app.infrastructure.database import SessionLocal
+from app.infrastructure.database import AsyncSessionLocal
 from app.use_cases.sensor_service import SensorService
 from app.domain import models
 
 def seed_forecasting_data():
-    db = SessionLocal()
+    db = AsyncSessionLocal()
     service = SensorService(db)
     
     device_id = 1

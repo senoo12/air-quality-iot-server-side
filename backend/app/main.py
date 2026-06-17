@@ -1,23 +1,22 @@
-from fastapi import FastAPI
-from app.api.v1.endpoints import router as api_router
+from fastapi import FastAPI, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from app.infrastructure.database import engine
+import fastapi.routing
+from fastapi.encoders import jsonable_encoder
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession  # 👈 Gunakan AsyncSession untuk menggantikan Session
+import time
+
+# Infrastruktur & Skema
+from app.api.v1.endpoints import router as api_router
 from app.domain import models
+from app.infrastructure.database import async_engine, get_db
 
 # =====================================================================
 # PATCH TIMEZONE GLOBAL FIX (MIGRASI DI SINI)
 # =====================================================================
-import fastapi.routing
-from fastapi.encoders import jsonable_encoder
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from zoneinfo import ZoneInfo
-from app.infrastructure.database import engine, get_db
-from fastapi import FastAPI, Depends, status
-import time
-
 # 1. Simpan encoder bawaan asli FastAPI
 original_jsonable_encoder = fastapi.encoders.jsonable_encoder
 
@@ -37,15 +36,20 @@ fastapi.encoders.jsonable_encoder = custom_jsonable_encoder
 fastapi.routing.jsonable_encoder = custom_jsonable_encoder
 # =====================================================================
 
-# Jalankan skrip pembentukan tabel seperti biasa
-models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Air Quality Monitoring API", version="1.0")
 
-# Catatan kecil: pastikan format origins Anda adalah list of strings biasa 
-# agar CORS tidak error jika nanti asterisk ["*"] dilepas, contoh: origins = ["*"]
-origins = ["*"]
+# 💡 SOLUSI UTAMA: Bungkus DDL Sinkronus ke dalam Startup Event Asinkronus
+@app.on_event("startup")
+async def init_tables():
+    """Menjembatani pembuatan tabel sinkronus melalui koneksi stream AsyncEngine."""
+    async with async_engine.begin() as conn:
+        # run_sync akan mengeksekusi metadata create_all secara aman di latar belakang async
+        await conn.run_sync(models.Base.metadata.create_all)
+    print("[INFO] Semua struktur tabel berhasil diverifikasi/dibuat di Neon Postgres via Async Engine.")
 
+
+# Konfigurasi CORS
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -54,8 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 💡 PERBAIKAN ENDPOINT DEBUG: Ubah menjadi async def dan gunakan AsyncSession + await
 @app.get("/api/debug-time", tags=["Debug"])
-def check_my_timezone(db: Session = Depends(get_db)):
+async def check_my_timezone(db: AsyncSession = Depends(get_db)):  # 👈 Diubah ke AsyncSession
     # 1. Cek waktu local machine (Ubuntu Anda)
     local_time = datetime.now()
     local_tzname = time.tzname
@@ -70,10 +75,12 @@ def check_my_timezone(db: Session = Depends(get_db)):
 
     # 3. Cek langsung apa maunya database Neon Postgres Anda saat ini
     try:
-        # Menanyakan langsung ke PostgreSQL session timezone-nya apa
-        db_tz = db.execute(text("SHOW TIMEZONE;")).scalar()
-        # Menanyakan waktu saat ini versi database Neon
-        db_now = db.execute(text("SELECT NOW();")).scalar()
+        # Operasi I/O pada AsyncSession wajib menggunakan await
+        res_tz = await db.execute(text("SHOW TIMEZONE;"))
+        db_tz = res_tz.scalar()
+        
+        res_now = await db.execute(text("SELECT NOW();"))
+        db_now = res_now.scalar()
     except Exception as e:
         db_tz = f"Error DB: {str(e)}"
         db_now = "Error DB"

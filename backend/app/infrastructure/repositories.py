@@ -1,94 +1,98 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain import models
 from datetime import date, time
 
-# USER REPOSITORY 
+# =====================================================================
+# REFAKTOR REPOSITORI ASYNCHRONOUS (NEON ASYNC COMPATIBLE)
+# =====================================================================
+
 class UserRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):  # 👈 Gunakan AsyncSession
         self.db = db
 
-    def get_by_username(self, username: str):
-        return self.db.query(models.User).filter(models.User.username == username).first()
+    async def get_by_username(self, username: str):
+        stmt = select(models.User).filter(models.User.username == username)
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
-    def get_all_users(self):
-        return self.db.query(models.User).all()
+    async def get_all_users(self):
+        stmt = select(models.User)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
-    def get_by_email(self, email: str):
-        return self.db.query(models.User).filter(models.User.email == email).first()
+    async def get_by_email(self, email: str):
+        result = await self.db.execute(select(models.User).filter(models.User.email == email))
+        return result.scalars().first()
     
-    def get_by_id(self, user_id: int):
-        return self.db.query(models.User).filter(models.User.id == user_id).first()
+    async def get_by_id(self, user_id: int):
+        result = await self.db.execute(select(models.User).filter(models.User.id == user_id))
+        return result.scalars().first()
 
-    def create(self, username: str, hashed_password: str, email: str):
+    async def create(self, username: str, hashed_password: str, email: str):
         db_user = models.User(
             username=username, 
             hashed_password=hashed_password, 
             email=email
         )
         self.db.add(db_user)
-        self.db.commit()
-        self.db.refresh(db_user)
+        await self.db.flush()  # Mengalirkan data ke Neon untuk generate ID secara aman
         return db_user
 
-    def admin_assign_device(self, user_id: int, device_name: str):
+    async def admin_assign_device(self, user_id: int, device_name: str):
         device = models.Device(user_id=user_id, device_name=device_name)
         self.db.add(device)
-        self.db.commit()
-        self.db.refresh(device)
+        await self.db.flush()
         return device
     
-    def update_admin_status(self, user_id: int, is_admin: bool):
+    async def update_admin_status(self, user_id: int, is_admin: bool):
         """Mengubah status is_admin dari user berdasarkan ID."""
-        user = self.get_by_id(user_id)
+        user = await self.get_by_id(user_id)
         if user:
             user.is_admin = is_admin
-            self.db.commit()
-            self.db.refresh(user)
+            await self.db.flush()
         return user
 
-# DEVICE REPOSITORY
+
 class DeviceRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def create_device(self, user_id: int, name: str, status_active: bool):
+    async def create_device(self, user_id: int, name: str, status_active: bool):
         device = models.Device(user_id=user_id, device_name=name, status_active=status_active)
         self.db.add(device)
-        self.db.commit()
-        self.db.refresh(device)
+        await self.db.flush()
         return device
 
-    def get_device_by_id(self, device_id: int):
-        """Mencari data device spesifik berdasarkan Primary Key (ID)."""
-        return self.db.query(models.Device).filter(models.Device.id == device_id).first()
+    async def get_device_by_id(self, device_id: int):
+        result = await self.db.execute(select(models.Device).filter(models.Device.id == device_id))
+        return result.scalars().first()
 
-    def get_user_devices(self, user_id: int):
-        return self.db.query(models.Device).filter(models.Device.user_id == user_id).all()
+    async def get_user_devices(self, user_id: int):
+        result = await self.db.execute(select(models.Device).filter(models.Device.user_id == user_id))
+        return result.scalars().all()
 
-    def get_by_user_id(self, user_id: int):
-        """Mencari device berdasarkan user_id (untuk validasi relasi One-to-One)."""
-        return self.db.query(models.Device).filter(models.Device.user_id == user_id).first()
+    async def get_by_user_id(self, user_id: int):
+        result = await self.db.execute(select(models.Device).filter(models.Device.user_id == user_id))
+        return result.scalars().first()
 
-    def get_by_name(self, device_name: str):
-        """Mencari device berdasarkan nama perangkat di database."""
-        return self.db.query(models.Device).filter(models.Device.device_name == device_name).first()
+    async def get_by_name(self, device_name: str):
+        result = await self.db.execute(select(models.Device).filter(models.Device.device_name == device_name))
+        return result.scalars().first()
     
-    def update_status(self, device_id: int, status_active: bool):
-        """Mengubah field status_active secara langsung di database."""
-        db_device = self.db.query(models.Device).filter(models.Device.id == device_id).first()
+    async def update_status(self, device_id: int, status_active: bool):
+        db_device = await self.get_device_by_id(device_id)
         if db_device:
             db_device.status_active = status_active
-            self.db.commit()
-            self.db.refresh(db_device)
+            await self.db.flush()
         return db_device
 
-# SENSOR REPOSITORY
+
 class SensorRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    # Simpan Log untuk MQ135
-    def create_mq135_log(self, device_id: int, mq135: float, nh3: float, co: float, co2: float, acetone: float):
+    async def create_mq135_log(self, device_id: int, mq135: float, nh3: float, co: float, co2: float, acetone: float):
         db_log = models.SensorMQ135(
             device_id=device_id,
             mq135=mq135,
@@ -98,53 +102,40 @@ class SensorRepository:
             ppm_acetone=acetone
         )
         self.db.add(db_log)
-        self.db.commit()
-        self.db.refresh(db_log)
+        await self.db.flush()
         return db_log
 
-    # Simpan Log untuk DHT22
-    def create_dht22_log(self, device_id: int, temperature: float, humidity: float):
+    async def create_dht22_log(self, device_id: int, temperature: float, humidity: float):
         db_log = models.SensorDHT22(
             device_id=device_id,
             temperature=temperature,
             humidity=humidity
         )
         self.db.add(db_log)
-        self.db.commit()
-        self.db.refresh(db_log)
+        await self.db.flush()
         return db_log
 
-    # PIPELINE TIME SERIES: Mengambil History 2 Jam (t-0 sampai t-3)
-    def get_mq135_time_series_history(self, device_id: int) -> list[models.SensorMQ135]:
-        """
-        Mengambil 4 data MQ135 terbaru (t-0, t-1, t-2, t-3) untuk windowing 2 jam.
-        Data diurutkan dari yang paling lama (t-3) ke paling baru (t-0) 
-        agar siap dibentuk menjadi array/tensor oleh pipeline model.
-        """
-        subquery = self.db.query(models.SensorMQ135)\
-            .filter(models.SensorMQ135.device_id == device_id)\
-            .order_by(models.SensorMQ135.created_at.desc())\
-            .limit(4).all()
-        
-        # kembali urutan agar sekuensial dari masa lalu ke sekarang: [t-3, t-2, t-1, t-0]
+    async def get_mq135_time_series_history(self, device_id: int) -> list[models.SensorMQ135]:
+        result = await self.db.execute(
+            select(models.SensorMQ135)
+            .filter(models.SensorMQ135.device_id == device_id)
+            .order_by(models.SensorMQ135.created_at.desc())
+            .limit(4)
+        )
+        subquery = result.scalars().all()
         return subquery[::-1]
 
-    def get_dht22_time_series_history(self, device_id: int) -> list[models.SensorDHT22]:
-        """
-        Mengambil 4 data DHT22 terbaru (t-0, t-1, t-2, t-3) untuk windowing 2 jam.
-        Urutan dibalik dari yang paling lama (t-3) ke paling baru (t-0).
-        """
-        subquery = self.db.query(models.SensorDHT22)\
-            .filter(models.SensorDHT22.device_id == device_id)\
-            .order_by(models.SensorDHT22.created_at.desc())\
-            .limit(4).all()
-        
+    async def get_dht22_time_series_history(self, device_id: int) -> list[models.SensorDHT22]:
+        result = await self.db.execute(
+            select(models.SensorDHT22)
+            .filter(models.SensorDHT22.device_id == device_id)
+            .order_by(models.SensorDHT22.created_at.desc())
+            .limit(4)
+        )
+        subquery = result.scalars().all()
         return subquery[::-1]
 
-    # =========================================================================
-
-    # Gabungkan fitur sensor untuk preprocessing (Conclusion Feature)
-    def create_conclusion_feature(self, mq135_id: int, dht22_id: int, current_hour: time, is_weekend: bool):
+    async def create_conclusion_feature(self, mq135_id: int, dht22_id: int, current_hour: time, is_weekend: bool):
         feature = models.ConclusionFeature(
             sensor_mq135_id=mq135_id,
             sensor_dht22_id=dht22_id,
@@ -152,41 +143,43 @@ class SensorRepository:
             is_weekend=is_weekend
         )
         self.db.add(feature)
-        self.db.commit()
-        self.db.refresh(feature)
+        await self.db.flush()
         return feature
 
-    # Simpan hasil klasifikasi real-time
-    def save_classification(self, conclusion_feature_id: int, label_status: str):
+    async def save_classification(self, conclusion_feature_id: int, label_status: str):
         classif = models.Classification(
             conclusion_feature_id=conclusion_feature_id,
             label_status=label_status
         )
         self.db.add(classif)
-        self.db.commit()
-        self.db.refresh(classif)
+        await self.db.flush()
         return classif
 
-    # DAY-AHEAD FORECASTING PIPELINE
-    def get_mq135_forecast_lag_history(self, device_id: int, limit: int = 49) -> list[models.SensorMQ135]:
-        """Mengambil 49 data terakhir dari yang terlama ke terbaru (t-48 s/d t-0) untuk forecasting"""
-        subquery = self.db.query(models.SensorMQ135)\
-            .filter(models.SensorMQ135.device_id == device_id)\
-            .order_by(models.SensorMQ135.created_at.desc())\
-            .limit(limit).subquery()
-        return self.db.query(subquery).order_by(subquery.c.created_at.asc()).all()
+    async def get_mq135_forecast_lag_history(self, device_id: int, limit: int = 49) -> list[models.SensorMQ135]:
+        stmt = (
+            select(models.SensorMQ135)
+            .filter(models.SensorMQ135.device_id == device_id)
+            .order_by(models.SensorMQ135.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        subquery = result.scalars().all()
+        # Urutkan asc berdasarkan waktu pembuatan (t-48 ke t-0)
+        return sorted(subquery, key=lambda x: x.created_at)
 
-    def get_dht22_forecast_lag_history(self, device_id: int, limit: int = 49) -> list[models.SensorDHT22]:
-        """Mengambil 49 data terakhir dari yang terlama ke terbaru (t-48 s/d t-0) untuk forecasting"""
-        subquery = self.db.query(models.SensorDHT22)\
-            .filter(models.SensorDHT22.device_id == device_id)\
-            .order_by(models.SensorDHT22.created_at.desc())\
-            .limit(limit).subquery()
-        return self.db.query(subquery).order_by(subquery.c.created_at.asc()).all()
+    async def get_dht22_forecast_lag_history(self, device_id: int, limit: int = 49) -> list[models.SensorDHT22]:
+        stmt = (
+            select(models.SensorDHT22)
+            .filter(models.SensorDHT22.device_id == device_id)
+            .order_by(models.SensorDHT22.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        subquery = result.scalars().all()
+        return sorted(subquery, key=lambda x: x.created_at)
 
-    def save_forecasting_prediction(self, conclusion_feature_id: int, label_status: str, 
-                                    target_time: time, target_date: date, confidence: float):
-        """Menyimpan hasil ramalan 24 jam ke depan langsung ke dalam tabel predictions"""
+    async def save_forecasting_prediction(self, conclusion_feature_id: int, label_status: str, 
+                                          target_time: time, target_date: date, confidence: float):
         db_prediction = models.Prediction(
             conclusion_feature_id=conclusion_feature_id,
             label_status=label_status,
@@ -195,5 +188,5 @@ class SensorRepository:
             confidence=confidence
         )
         self.db.add(db_prediction)
-        self.db.flush()
+        await self.db.flush()
         return db_prediction
