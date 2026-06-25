@@ -33,7 +33,7 @@ export function useAirQualityHistory() {
             });
     }, []);
 
-    const fetchHistoryData = async (deviceId: number, limit: number) => {
+    const fetchAllData = async (deviceId: number, limit: number) => {
         const token = localStorage.getItem('access_token') || '';
         if (!token) return;
 
@@ -45,7 +45,7 @@ export function useAirQualityHistory() {
                 repository.getHistoryClassification(deviceId, limit, token),
                 repository.getHistoryClassification(deviceId, 2000, token)
             ]);
-            
+
             console.log("RAW classData[0]:", JSON.stringify(classData[0]));
             console.log("RAW sensorData[0]:", JSON.stringify(sensorData[0]));
             console.log("Keys classData[0]:", classData[0] ? Object.keys(classData[0]) : 'EMPTY');
@@ -55,22 +55,52 @@ export function useAirQualityHistory() {
             setClassHistory(classData);
             setMetricClassHistory(metricData);
         } catch (err: any) {
-            console.error("Error fetchHistoryData:", err);
+            console.error("Error fetchAllData:", err);
             setErrorMsg("Gagal memuat rentang histori data pipeline.");
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchTableDataOnly = async (deviceId: number, limit: number) => {
+        const token = localStorage.getItem('access_token') || '';
+        if (!token) return;
+
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const [sensorData, classData] = await Promise.all([
+                repository.getSensorHistory(deviceId, limit, token),
+                repository.getHistoryClassification(deviceId, limit, token)
+            ]);
+
+            setSensorHistory(sensorData);
+            setClassHistory(classData);
+        } catch (err: any) {
+            console.error("Error fetchTableDataOnly:", err);
+            setErrorMsg("Gagal memperbarui data tabel.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Pemicu saat Device berubah (Ambil semua data tabel & statistik 2000 data)
     useEffect(() => {
         if (selectedDeviceId) {
-            fetchHistoryData(selectedDeviceId, dataLimit);
+            fetchAllData(selectedDeviceId, dataLimit);
         }
-    }, [selectedDeviceId, dataLimit]);
+    }, [selectedDeviceId]);
+
+    // Pemicu saat Limit Tabel berubah (HANYA update data tabel, statistik 2000 tetap aman)
+    useEffect(() => {
+        if (selectedDeviceId) {
+            fetchTableDataOnly(selectedDeviceId, dataLimit);
+        }
+    }, [dataLimit]);
 
     const handleRefresh = async () => {
         if (selectedDeviceId) {
-            await fetchHistoryData(selectedDeviceId, dataLimit);
+            await fetchAllData(selectedDeviceId, dataLimit);
         }
     };
 

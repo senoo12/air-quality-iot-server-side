@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select  
+from sqlalchemy import select, func  
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
 
@@ -218,6 +218,7 @@ async def get_latest_air_quality_classification(
 @router.get("/history/classification/{device_id}", response_model=List[schemas.ClassificationHistoryResponse])
 async def get_classification_history(
     device_id: int,
+    status: Optional[str] = None,
     limit: Optional[int] = None,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
@@ -230,17 +231,19 @@ async def get_classification_history(
     if not device or device.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Akses ditolak! Perangkat ini bukan milik Anda.")
 
-    # 💡 REFAKTOR: Migrasi dari db.query() ke await db.execute(select())
     stmt = select(models.Classification)\
         .join(models.ConclusionFeature)\
         .join(models.SensorMQ135)\
-        .filter(models.SensorMQ135.device_id == device_id)\
-        .order_by(models.Classification.created_at.desc())\
-        .limit(limit)
+        .filter(models.SensorMQ135.device_id == device_id)
+
+    if status and status.strip() != "" and status.lower() != "all":
+        # Mengubah .status menjadi .label_status sesuai struktur data analitik Anda
+        stmt = stmt.filter(func.lower(models.Classification.label_status) == status.lower().strip())
+        
+    stmt = stmt.order_by(models.Classification.created_at.desc()).limit(limit)
         
     result = await db.execute(stmt)
     return result.scalars().all()
-
 
 @router.get("/forecast/day-ahead/{device_id}", response_model=schemas.PredictionResponse, tags=["Forecasting Pipeline"])
 async def get_day_ahead_air_quality_forecast(
