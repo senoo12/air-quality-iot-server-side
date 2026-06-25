@@ -33,6 +33,7 @@ class Device(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     device_name = Column(String, unique=True, index=True)
     status_active = Column(Boolean, default=True)
+    device_token = Column(String, unique=True, index=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=get_wib_time)

@@ -44,6 +44,8 @@ class DeviceCreate(BaseModel):
 class DeviceResponse(DeviceCreate):
     id: int
     user_id: int
+    status_active: bool
+    device_token: str
     created_at: datetime
     updated_at: datetime
 

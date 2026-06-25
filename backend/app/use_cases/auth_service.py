@@ -1,5 +1,5 @@
 # app/use_cases/auth_service.py
-from sqlalchemy.ext.asyncio import AsyncSession # 👈 Gunakan AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession 
 from fastapi import HTTPException, status
 from app.infrastructure.repositories import UserRepository
 from app.infrastructure.security import (

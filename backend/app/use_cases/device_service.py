@@ -1,8 +1,9 @@
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from app.infrastructure.repositories import DeviceRepository, UserRepository
-from app.infrastructure.security import decode_token
+from app.infrastructure.security import decode_token, create_access_token
 
 class DeviceService:
     def __init__(self, db: AsyncSession):
@@ -18,8 +19,6 @@ class DeviceService:
                 detail=f"User dengan ID {user_target_id} tidak ditemukan"
             )
         
-        # 🟢 TAMBAHKAN VALIDASI INI (Cek hubungan One-to-One):
-        # Cari tahu apakah user ini sudah punya device terdaftar
         user_has_device = await self.device_repo.get_by_user_id(user_target_id)
         if user_has_device:
             raise HTTPException(
@@ -35,8 +34,30 @@ class DeviceService:
                 detail=f"Device dengan nama '{device_name}' sudah terdaftar"
             )
         
-        # 3. Jika semua validasi lolos, buat device baru
-        return await self.device_repo.create_device(user_target_id, device_name, status_active=status_active)
+        # 3. Jika semua validasi lolos, simpan device baru ke DB
+        new_device = await self.device_repo.create_device(user_target_id, device_name, status_active=status_active)
+        
+        # 💡 4. GENERATE LONG-LIVED ACCESS TOKEN (Masa aktif 10 Tahun)
+        # Ambil ID device yang baru saja terbit dari database
+        token_payload = {
+            "sub": f"device_{new_device.device_name}",
+            "id": new_device.id, # 👈 Sangat penting untuk identifikasi parameter URL {device_id} nanti
+            "is_device": True    # Flag pembeda dari akun user biasa (manusia)
+        }
+        
+        long_expiry = timedelta(days=3650) # 10 Tahun
+        device_token = await create_access_token(data=token_payload, expires_delta=long_expiry)
+        
+        # 💡 5. Kembalikan objek dictionary gabungan data device + token abadi
+        return {
+            "id": new_device.id,
+            "device_name": new_device.device_name,
+            "user_id": new_device.user_id,
+            "status_active": new_device.status_active,
+            "device_token": device_token,
+            "created_at": new_device.created_at,
+            "updated_at": new_device.updated_at
+        }
     
     async def get_user_device_list(self, token: str) -> list:
         """Membongkar token JWT dan mengambil daftar device milik user tersebut."""
@@ -61,10 +82,6 @@ class DeviceService:
             )
 
     async def change_device_status(self, token: str, device_id: int, status_active: bool):
-        """
-        Memvalidasi kepemilikan device berdasarkan token user aktif,
-        kemudian mengubah status aktif (nyala/mati) perangkat IoT tersebut.
-        """
         try:
             # 1. Dekode token JWT untuk mendapatkan ID user yang sedang login
             user_info = await decode_token(token)
