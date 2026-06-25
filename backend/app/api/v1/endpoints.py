@@ -158,7 +158,6 @@ async def log_sensor_data(
 @router.get("/history/sensor/{device_id}", response_model=List[schemas.SensorHistoryCombinedResponse])
 async def get_combined_sensor_history(
     device_id: int,
-    limit: int = 50,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
@@ -218,7 +217,6 @@ async def get_latest_air_quality_classification(
 @router.get("/history/classification/{device_id}", response_model=List[schemas.ClassificationHistoryResponse])
 async def get_classification_history(
     device_id: int,
-    limit: int = 50,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
@@ -235,8 +233,7 @@ async def get_classification_history(
         .join(models.ConclusionFeature)\
         .join(models.SensorMQ135)\
         .filter(models.SensorMQ135.device_id == device_id)\
-        .order_by(models.Classification.created_at.desc())\
-        .limit(limit)
+        .order_by(models.Classification.created_at.desc())
         
     result = await db.execute(stmt)
     return result.scalars().all()
