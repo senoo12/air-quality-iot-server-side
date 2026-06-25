@@ -36,7 +36,8 @@ class UserRepository:
             email=email
         )
         self.db.add(db_user)
-        await self.db.flush()  # Mengalirkan data ke Neon untuk generate ID secara aman
+        await self.db.commit()
+        await self.db.refresh(db_user)
         return db_user
 
     async def admin_assign_device(self, user_id: int, device_name: str):
@@ -61,7 +62,16 @@ class DeviceRepository:
     async def create_device(self, user_id: int, name: str, status_active: bool):
         device = models.Device(user_id=user_id, device_name=name, status_active=status_active)
         self.db.add(device)
-        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(device)
+        return device
+    
+    async def update_token(self, device_id: int, token: str):
+        device = await self.get_device_by_id(device_id)
+        if device:
+            device.device_token = token
+            await self.db.commit()
+            await self.db.refresh(device)
         return device
 
     async def get_device_by_id(self, device_id: int):

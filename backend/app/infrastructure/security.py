@@ -66,3 +66,16 @@ async def decode_token(token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token kadaluwarsa atau tidak valid",
         )
+
+async def create_access_token_for_device(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    
+    if expires_delta is not False:
+        if expires_delta:
+            expire = await run_in_threadpool(datetime.utcnow) + expires_delta
+        else:
+            expire = await run_in_threadpool(datetime.utcnow) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        to_encode.update({"exp": expire})
+    
+    encoded_jwt = await run_in_threadpool(jwt.encode, to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt

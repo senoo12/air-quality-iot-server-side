@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from app.infrastructure.repositories import DeviceRepository, UserRepository
-from app.infrastructure.security import decode_token, create_access_token
+from app.infrastructure.security import decode_token, create_access_token, create_access_token_for_device
 
 class DeviceService:
     def __init__(self, db: AsyncSession):
@@ -36,6 +36,7 @@ class DeviceService:
         
         # 3. Jika semua validasi lolos, simpan device baru ke DB
         new_device = await self.device_repo.create_device(user_target_id, device_name, status_active=status_active)
+        print(f"DEBUG: Device berhasil dibuat. ID: {new_device.id}, Name: {new_device.device_name}")
         
         # 💡 4. GENERATE LONG-LIVED ACCESS TOKEN (Masa aktif 10 Tahun)
         # Ambil ID device yang baru saja terbit dari database
@@ -46,7 +47,9 @@ class DeviceService:
         }
         
         long_expiry = timedelta(days=3650) # 10 Tahun
-        device_token = await create_access_token(data=token_payload, expires_delta=long_expiry)
+        device_token = await create_access_token_for_device(data=token_payload, expires_delta=long_expiry)
+
+        await self.device_repo.update_token(new_device.id, device_token)
         
         # 💡 5. Kembalikan objek dictionary gabungan data device + token abadi
         return {
