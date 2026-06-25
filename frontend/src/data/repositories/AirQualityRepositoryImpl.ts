@@ -44,8 +44,8 @@ export class AirQualityRepositoryImpl implements AirQualityRepository {
         };
     }
 
-    async getSensorHistory(deviceId: number, limit: number, token: string): Promise<SensorLog[]> {
-        const res = await fetch(`${API_BASE_URL}/history/sensor/${deviceId}?limit=${limit}`, { headers: this.getHeaders(token) });
+    async getSensorHistory(deviceId: number, token: string): Promise<SensorLog[]> {
+        const res = await fetch(`${API_BASE_URL}/history/sensor/${deviceId}`, { headers: this.getHeaders(token) });
         if (!res.ok) throw new Error('Gagal memuat histori sensor.');
         const data = await res.json();
         return data.map((row: any) => ({
@@ -69,8 +69,8 @@ export class AirQualityRepositoryImpl implements AirQualityRepository {
         return { id: d.id, status: d.label_status, createdAt: d.created_at };
     }
 
-    async getHistoryClassification(deviceId: number, limit: number, token: string): Promise<Classification[]> {
-        const res = await fetch(`${API_BASE_URL}/history/classification/${deviceId}?limit=${limit}`, { headers: this.getHeaders(token) });
+    async getHistoryClassification(deviceId: number, token: string): Promise<Classification[]> {
+        const res = await fetch(`${API_BASE_URL}/history/classification/${deviceId}`, { headers: this.getHeaders(token) });
         if (!res.ok) throw new Error('Gagal memuat riwayat klasifikasi.');
         const data = await res.json();
         return data.map((d: any) => ({

@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select  
 from sqlalchemy.orm import joinedload
-from typing import List
+from typing import List, Optional
 
 # Infrastruktur & Keamanan
 from app.infrastructure.database import get_db
@@ -217,6 +217,7 @@ async def get_latest_air_quality_classification(
 @router.get("/history/classification/{device_id}", response_model=List[schemas.ClassificationHistoryResponse])
 async def get_classification_history(
     device_id: int,
+    limit: Optional[int] = None,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
@@ -233,7 +234,8 @@ async def get_classification_history(
         .join(models.ConclusionFeature)\
         .join(models.SensorMQ135)\
         .filter(models.SensorMQ135.device_id == device_id)\
-        .order_by(models.Classification.created_at.desc())
+        .order_by(models.Classification.created_at.desc())\
+        .limit(limit)
         
     result = await db.execute(stmt)
     return result.scalars().all()
