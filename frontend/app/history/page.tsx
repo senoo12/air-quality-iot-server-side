@@ -36,7 +36,7 @@ export default function HistoryPage() {
     }, [classHistory]);
 
     const filteredRows = useMemo(() => {
-        return sensorHistory.map((row) => {
+        const mapped = sensorHistory.map((row) => {
             const matchingClassObj = classMap.get(Number(row.id)) as any;
 
             const rawStatus =
@@ -49,11 +49,15 @@ export default function HistoryPage() {
                 rawStatus.trim().slice(1).toLowerCase();
 
             return { ...row, status: formattedStatus };
-        }).filter(row => {
+        });
+
+        const filtered = mapped.filter(row => {
             if (labelFilter === 'All') return true;
             return row.status.toLowerCase() === labelFilter.toLowerCase();
         });
-    }, [sensorHistory, classMap, labelFilter]);
+
+        return filtered.slice(0, dataLimit);
+    }, [sensorHistory, classMap, labelFilter, dataLimit]);
 
     return (
         <div className="flex bg-slate-50 min-h-screen text-slate-800">

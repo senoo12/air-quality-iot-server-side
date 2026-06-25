@@ -8,9 +8,9 @@ export interface UserDropdownEntity {
 export interface AirQualityRepository {
     getDevices(token: string): Promise<Device[]>;
     toggleDeviceStatus(deviceId: number, status: boolean, token: string): Promise<Device>;
-    getSensorHistory(deviceId: number, limit: number, token: string): Promise<SensorLog[]>;
+    getSensorHistory(deviceId: number, limit: number | null, token: string): Promise<SensorLog[]>;
     getLatestClassification(deviceId: number, token: string): Promise<Classification | null>;
-    getHistoryClassification(deviceId: number, limit: number, token: string): Promise<Classification[]>;
+    getHistoryClassification(deviceId: number, limit: number | null, token: string): Promise<Classification[]>;
     triggerForecast(deviceId: number, token: string): Promise<ForecastPrediction>;
 
     createDevice(deviceName: string, userTargetId: number, token: string): Promise<Device>;
