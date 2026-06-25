@@ -158,6 +158,7 @@ async def log_sensor_data(
 @router.get("/history/sensor/{device_id}", response_model=List[schemas.SensorHistoryCombinedResponse])
 async def get_combined_sensor_history(
     device_id: int,
+    limit: Optional[int] = None,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
