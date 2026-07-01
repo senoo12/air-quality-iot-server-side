@@ -271,6 +271,15 @@ async def create_log(data: schemas.LogCreateSchema, db: AsyncSession = Depends(g
     service = LogTestingService(db)
     return await service.create_log(data.dict())
 
+@router.post("/log_testing/bulk", status_code=status.HTTP_201_CREATED)
+async def create_bulk_logs(
+    payload: schemas.LogBulkCreateSchema, 
+    db: AsyncSession = Depends(get_db)
+):
+    service = LogTestingService(db)
+    await service.create_bulk_logs(payload.logs)
+    return {"message": f"Berhasil menambahkan {len(payload.logs)} log."}
+
 @router.get("/log_testing", response_model=List[schemas.LogTestingResponse])
 async def get_logs(db: AsyncSession = Depends(get_db)):
     service = LogTestingService(db)

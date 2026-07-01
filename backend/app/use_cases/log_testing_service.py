@@ -7,6 +7,7 @@ from app.domain.models import LogTesting, Classification, ConclusionFeature, Sen
 class LogTestingService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.repo = LogTestingRepository(db)
 
     async def create_log(self, data: dict):
         """Membuat log testing baru."""
@@ -14,7 +15,14 @@ class LogTestingService:
         self.db.add(new_log)
         await self.db.commit()
         await self.db.refresh(new_log)
-        return new_log
+        return new_log  
+    
+    async def create_bulk_logs(self, logs_data: list): # logs_data berisi list of LogCreateSchema
+        # Konversi setiap objek Pydantic menjadi dict
+        logs_as_dicts = [log.model_dump() for log in logs_data]
+        
+        # Kirim list of dict ke repository
+        return await self.repo.create_bulk_logs(logs_as_dicts)
 
     async def get_all_logs_detailed(self):
         stmt = (

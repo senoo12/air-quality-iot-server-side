@@ -224,6 +224,9 @@ class LogCreateSchema(BaseModel):
             }
         }
 
+class LogBulkCreateSchema(BaseModel):
+    logs: List[LogCreateSchema]
+
 class LogTestingResponse(BaseModel):
     id: int
     device_id: int

@@ -212,7 +212,18 @@ class LogTestingRepository:
         await self.db.commit()
         await self.db.refresh(new_log)
         return new_log
-
+    
+    async def create_bulk_logs(self, logs_data: list[dict]) -> list[models.LogTesting]:
+            """Menyimpan banyak log sekaligus ke database."""
+            # Sekarang logs_data adalah list of dict, jadi **log akan bekerja
+            new_logs = [models.LogTesting(**log) for log in logs_data]
+            self.db.add_all(new_logs)
+            await self.db.commit()
+            # Opsional: refresh untuk mendapatkan ID yang digenerate DB
+            for log in new_logs:
+                await self.db.refresh(log)
+            return new_logs
+    
     async def get_all_logs(self):
         """
         Mengambil semua log. 
