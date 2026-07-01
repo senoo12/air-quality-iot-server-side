@@ -197,6 +197,7 @@ class LogCreateSchema(BaseModel):
     current_ma: float
     power_mw: float
     energy_mj: float
+    actuator_status: str
 
     class Config:
         # Menambahkan contoh input untuk dokumentasi Swagger/OpenAPI
@@ -218,7 +219,8 @@ class LogCreateSchema(BaseModel):
                 "voltage_v": 3.3,
                 "current_ma": 50.0,
                 "power_mw": 165.0,
-                "energy_mj": 10.0
+                "energy_mj": 10.0,
+                "actuator_status": "ON"
             }
         }
 
@@ -248,6 +250,7 @@ class LogTestingResponse(BaseModel):
     current_ma: float
     power_mw: float
     energy_mj: float
+    actuator_status: str
     created_at: datetime
 
     class Config:

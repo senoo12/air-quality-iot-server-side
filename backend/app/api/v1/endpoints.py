@@ -308,6 +308,7 @@ async def get_logs(db: AsyncSession = Depends(get_db)):
             "current_ma": log.current_ma,
             "power_mw": log.power_mw,
             "energy_mj": log.energy_mj,
+            "actuator_status": log.actuator_status,
             "created_at": log.created_at
         })
     return results

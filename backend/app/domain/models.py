@@ -167,6 +167,7 @@ class LogTesting(Base):
     current_ma = Column(Float)
     power_mw = Column(Float)
     energy_mj = Column(Float)
+    actuator_status = Column(String)
     created_at = Column(DateTime(timezone=True), default=get_wib_time)
 
     classification = relationship("Classification", backref="log_testing")
