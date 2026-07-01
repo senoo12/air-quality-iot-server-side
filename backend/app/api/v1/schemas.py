@@ -172,3 +172,83 @@ class PredictionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# ==========================================
+# 7. LOG TESTING
+# ==========================================
+class LogCreateSchema(BaseModel):
+    # Foreign Key untuk relasi ke tabel classification
+    classification_id: int
+    
+    # Data performa dan sensor
+    mode: str
+    t_sensor: float
+    t_send: float
+    t_ack: float
+    t_actuator: float
+    rtt_us: float
+    e2e_us: float
+    payload_bits: float
+    payload_length: float
+    total_heap: float
+    free_heap: float
+    ram_load_pct: float
+    voltage_v: float
+    current_ma: float
+    power_mw: float
+    energy_mj: float
+
+    class Config:
+        # Menambahkan contoh input untuk dokumentasi Swagger/OpenAPI
+        json_schema_extra = {
+            "example": {
+                "classification_id": 1,
+                "mode": "benchmark",
+                "t_sensor": 10.5,
+                "t_send": 5.2,
+                "t_ack": 2.1,
+                "t_actuator": 3.0,
+                "rtt_us": 150.0,
+                "e2e_us": 200.0,
+                "payload_bits": 1024.0,
+                "payload_length": 128.0,
+                "total_heap": 50000.0,
+                "free_heap": 30000.0,
+                "ram_load_pct": 40.0,
+                "voltage_v": 3.3,
+                "current_ma": 50.0,
+                "power_mw": 165.0,
+                "energy_mj": 10.0
+            }
+        }
+
+class LogTestingResponse(BaseModel):
+    id: int
+    device_id: int
+    mq135: float
+    temperature: float
+    humidity: float
+    ppm_nh3: float
+    ppm_co: float
+    ppm_co2: float
+    ppm_acetone: float
+    mode: str
+    t_sensor: float
+    t_send: float
+    t_ack: float
+    t_actuator: float
+    rtt_us: float
+    e2e_us: float
+    payload_bits: float
+    payload_length: float
+    total_heap: float
+    free_heap: float
+    ram_load_pct: float
+    voltage_v: float
+    current_ma: float
+    power_mw: float
+    energy_mj: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

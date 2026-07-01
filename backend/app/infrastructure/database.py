@@ -3,7 +3,7 @@ from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-import asyncpg  # 👈 Tambahkan import asyncpg secara langsung
+import asyncpg  
 from dotenv import load_dotenv
 from datetime import datetime
 from zoneinfo import ZoneInfo

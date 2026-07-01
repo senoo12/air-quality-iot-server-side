@@ -21,6 +21,7 @@ from app.use_cases.device_service import DeviceService
 from app.use_cases.sensor_service import SensorService
 from app.use_cases.forecasting_service import ForecastingService
 from app.use_cases.classification_service import ClassificationService
+from app.use_cases.log_testing_service import LogTestingService
 
 router = APIRouter()
 
@@ -264,3 +265,49 @@ async def get_day_ahead_air_quality_forecast(
 
     forecast_service = ForecastingService(db)
     return await forecast_service.predict_day_ahead_status(device_id)
+
+@router.post("/log_testing")
+async def create_log(data: schemas.LogCreateSchema, db: AsyncSession = Depends(get_db)):
+    service = LogTestingService(db)
+    return await service.create_log(data.dict())
+
+@router.get("/log_testing", response_model=List[schemas.LogTestingResponse])
+async def get_logs(db: AsyncSession = Depends(get_db)):
+    service = LogTestingService(db)
+    logs = await service.get_all_logs_detailed()
+    
+    results = []
+    for log in logs:
+        cf = log.classification.conclusion_feature
+        # Mengambil device_id dari sensor (asumsi keduanya memiliki device_id)
+        d_id = cf.sensor_mq135.device_id 
+        
+        results.append({
+            "id": log.id,
+            "device_id": d_id,
+            "mq135": cf.sensor_mq135.mq135,
+            "temperature": cf.sensor_dht22.temperature,
+            "humidity": cf.sensor_dht22.humidity,
+            "ppm_nh3": cf.sensor_mq135.ppm_nh3,
+            "ppm_co": cf.sensor_mq135.ppm_co,
+            "ppm_co2": cf.sensor_mq135.ppm_co2,
+            "ppm_acetone": cf.sensor_mq135.ppm_acetone,
+            "mode": log.mode,
+            "t_sensor": log.t_sensor,
+            "t_send": log.t_send,
+            "t_ack": log.t_ack,
+            "t_actuator": log.t_actuator,
+            "rtt_us": log.rtt_us,
+            "e2e_us": log.e2e_us,
+            "payload_bits": log.payload_bits,
+            "payload_length": log.payload_length,
+            "total_heap": log.total_heap,
+            "free_heap": log.free_heap,
+            "ram_load_pct": log.ram_load_pct,
+            "voltage_v": log.voltage_v,
+            "current_ma": log.current_ma,
+            "power_mw": log.power_mw,
+            "energy_mj": log.energy_mj,
+            "created_at": log.created_at
+        })
+    return results

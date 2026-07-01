@@ -200,3 +200,24 @@ class SensorRepository:
         self.db.add(db_prediction)
         await self.db.flush()
         return db_prediction
+
+class LogTestingRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_log(self, log_data: dict) -> models.LogTesting:
+        """Menyimpan log baru ke database."""
+        new_log = models.LogTesting(**log_data)
+        self.db.add(new_log)
+        await self.db.commit()
+        await self.db.refresh(new_log)
+        return new_log
+
+    async def get_all_logs(self):
+        """
+        Mengambil semua log. 
+        Catatan: Join kompleks dilakukan di Service layer untuk fleksibilitas query.
+        """
+        stmt = select(models.LogTesting).order_by(models.LogTesting.created_at.desc())
+        result = await self.db.execute(stmt)
+        return result.scalars().all()

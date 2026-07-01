@@ -145,3 +145,28 @@ class Prediction(Base):
     
     # Relasi
     conclusion_feature = relationship("ConclusionFeature", back_populates="predictions")
+
+class LogTesting(Base):
+    __tablename__ = "log_testing"
+
+    id = Column(Integer, primary_key=True, index=True)
+    classification_id = Column(Integer, ForeignKey("classification.id", ondelete="CASCADE"))
+    mode = Column(String)
+    t_sensor = Column(Float)
+    t_send = Column(Float)
+    t_ack = Column(Float)
+    t_actuator = Column(Float)
+    rtt_us = Column(Float)
+    e2e_us = Column(Float)
+    payload_bits = Column(Float)
+    payload_length = Column(Float)
+    total_heap = Column(Float)
+    free_heap = Column(Float)
+    ram_load_pct = Column(Float)
+    voltage_v = Column(Float)
+    current_ma = Column(Float)
+    power_mw = Column(Float)
+    energy_mj = Column(Float)
+    created_at = Column(DateTime(timezone=True), default=get_wib_time)
+
+    classification = relationship("Classification", backref="log_testing")
