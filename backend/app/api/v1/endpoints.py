@@ -149,7 +149,8 @@ async def log_sensor_data(
         nh3=data.ppm_nh3,
         co=data.ppm_co,
         co2=data.ppm_co2,
-        acetone=data.ppm_acetone
+        acetone=data.ppm_acetone,
+        label_status=data.label_status
     )
     if isinstance(result, dict) and result.get("status") == "error":
         raise HTTPException(status_code=403, detail=result["message"])

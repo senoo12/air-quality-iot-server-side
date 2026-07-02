@@ -1,4 +1,6 @@
 from datetime import datetime
+
+from typing import Optional
 from app.domain import models
 from app.infrastructure.repositories import SensorRepository, DeviceRepository
 from app.use_cases.classification_service import ClassificationService
@@ -13,7 +15,8 @@ class SensorService:
         self.classification_service = ClassificationService(db)
  
     async def log_data(self, user_id: int, device_id: int, temp: float, hum: float,
-                       mq135: float, nh3: float, co: float, co2: float, acetone: float):
+                       mq135: float, nh3: float, co: float, co2: float, acetone: float,
+                       label_status: Optional[str] = None):
  
         # 1. Validasi Device & Hak Akses User
         device = await self.device_repo.get_by_user_id(user_id)
@@ -63,18 +66,29 @@ class SensorService:
             await self.db.rollback()
             print(f"❌ [CRITICAL] Gagal menyimpan data sensor: {e}")
             return {"status": "error", "message": f"Gagal memproses data sensor: {str(e)}"}
- 
-        # ── Inferensi ML ──────────────────────────────────────────────
-        # Kirimkan data murni berbentuk dictionary primitif ke sub-service
-        air_quality_status = await self.classification_service.process_time_series_classification(
-            current_mq=current_mq_data,
-            current_dht=current_dht_data,
-            conclusion_id=conclusion_id,
-            device_id=device_id
-        )
+
+        # ── Inferensi ML atau Pakai Label Lokal ──────────────────────
+        if label_status:
+            # 1. Simpan label dari Edge ke DB secara manual
+            await self.sensor_repo.save_classification(
+                conclusion_feature_id=conclusion_id,
+                label_status=label_status
+            )
+            await self.db.commit()
+            air_quality_status = label_status
+        else:
+            # 2. Jika tidak ada, baru jalankan ML (yang di dalamnya sudah ada save_to_db=True)
+            air_quality_status = await self.classification_service.process_time_series_classification(
+                current_mq=current_mq_data,
+                current_dht=current_dht_data,
+                conclusion_id=conclusion_id,
+                device_id=device_id,
+                save_to_db=True
+            )
+            await self.db.commit() # Commit hasil prediksi ML
  
         return {
             "status": "success",
-            "message": "Data logged and conclusion attached successfully",
-            "realtime_classification": air_quality_status if air_quality_status else "Classification Error"
+            "message": "Data logged successfully",
+            "realtime_classification": air_quality_status
         }

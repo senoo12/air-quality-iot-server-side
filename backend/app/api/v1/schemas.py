@@ -101,6 +101,7 @@ class SensorLogCreate(BaseModel):
     ppm_co: float
     ppm_co2: float
     ppm_acetone: float
+    label_status: Optional[str] = None
 
 class SensorHistoryCombinedResponse(BaseModel):
     """

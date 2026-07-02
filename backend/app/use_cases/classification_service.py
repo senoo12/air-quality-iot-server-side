@@ -32,7 +32,7 @@ class ClassificationService:
         print(f"✅ [TSC] Model dimuat — fitur: {self.tsc_model.n_features_in_}")
 
     async def process_time_series_classification(
-        self, current_mq: dict, current_dht: dict, conclusion_id: int, device_id: int
+        self, current_mq: dict, current_dht: dict, conclusion_id: int, device_id: int, save_to_db: bool = True
     ):
         """Menjalankan inferensi XGBoost TSC dari gabungan data history ORM dan data payload primitif."""
         
@@ -100,9 +100,9 @@ class ClassificationService:
         # 4. Prediksi ML (Isolasi Thread CPU-bound)
         label_idx     = await run_in_threadpool(lambda: int(self.tsc_model.predict(df)[0]))
         current_label = self.LABEL_MAP[label_idx]
- 
-        # 5. Simpan ke tabel classification
-        await self.sensor_repo.save_classification(
+
+        if save_to_db:
+            await self.sensor_repo.save_classification(
             conclusion_feature_id=conclusion_id,
             label_status=current_label
         )
